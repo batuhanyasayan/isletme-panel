@@ -1315,7 +1315,7 @@ export default function App() {
                       isActive ? 'text-blue-400' : 'text-gray-500 hover:text-gray-300'
                     }`}
                   >
-                    <div className={`absolute inset-0 bg-blue-500/10 rounded-xl scale-0 transition-transform duration-300 ${isActive ? 'scale-100' : ''}`}></div>
+                    <div className={`absolute inset-0 bg-blue-500/10 rounded-xl scale-0 transition-transform duration-300 hidden md:block ${isActive ? 'scale-100' : ''}`}></div>
                     <item.icon size={20} className={`relative z-10 transition-transform duration-300 ${isActive ? 'scale-110' : ''}`} strokeWidth={isActive ? 2.5 : 2} />
                     <span className="text-[9px] font-medium relative z-10">{item.label}</span>
                     {isActive && <span className="absolute -bottom-1 w-1 h-1 bg-blue-400 rounded-full"></span>}
