@@ -1228,7 +1228,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-900 font-sans text-gray-100 print:bg-white print:text-black">
+    <div className="flex min-h-screen bg-gray-900 font-sans text-gray-100 print:bg-white print:text-black overflow-x-hidden">
       <SettingsModal />
       
       {/* Sidebar (Desktop) */}
@@ -1336,7 +1336,7 @@ export default function App() {
          </div>
       </div>
 
-      <main className="flex-1 md:ml-64 p-4 md:p-8 pb-24 md:pb-8 overflow-y-auto custom-scrollbar print:ml-0 print:p-0 print:mt-0">
+      <main className="flex-1 md:ml-64 p-4 md:p-8 pb-24 md:pb-8 overflow-y-auto custom-scrollbar print:ml-0 print:p-0 print:mt-0 min-w-0">
         <div className="max-w-7xl mx-auto">
           {activeTab === 'dashboard' && <Dashboard />}
           {activeTab === 'firms' && <Firms />}
