@@ -29,7 +29,10 @@ import {
   Flag,
   Briefcase,
   StickyNote,
-  Menu
+  Menu,
+  ShoppingBag,
+  Layers,
+  Calendar
 } from 'lucide-react';
 
 // --- SABİT AYARLAR (Varsayılan) ---
@@ -50,7 +53,6 @@ const exportToCSV = (data, filename) => {
   // Data temizleme ve formatlama
   const cleanData = data.map(item => {
     const newItem = { ...item };
-    // ID gibi teknik alanları çıkarabiliriz veya formatlayabiliriz
     return newItem;
   });
 
@@ -104,6 +106,8 @@ const PlatformBadge = ({ platform }) => {
     Youtube: 'bg-red-900/30 text-red-300 border-red-700/50',
     LinkedIn: 'bg-blue-900/30 text-blue-300 border-blue-700/50',
     Twitter: 'bg-sky-900/30 text-sky-300 border-sky-700/50',
+    Trendyol: 'bg-orange-900/30 text-orange-300 border-orange-700/50',
+    'Web Sitesi': 'bg-teal-900/30 text-teal-300 border-teal-700/50',
     Diğer: 'bg-purple-900/30 text-purple-300 border-purple-700/50'
   };
   return (
@@ -200,7 +204,7 @@ const LoginScreen = ({ onLogin, error, businessName }) => {
           </button>
         </form>
         <p className="text-center text-gray-600 text-xs mt-6">
-          Güvenli Yönetim Paneli v2.1
+          Güvenli Yönetim Paneli v2.4
         </p>
       </div>
     </div>
@@ -289,7 +293,10 @@ export default function App() {
   const [expenses, setExpenses] = useState(() => JSON.parse(localStorage.getItem('smm_expenses')) || []);
   const [monthlyGoal, setMonthlyGoal] = useState(() => JSON.parse(localStorage.getItem('smm_monthly_goal')) || 20000);
   
-  // Hızlı Not Widget State (YENİ)
+  // YENİ: Trendyol Aktiviteleri State'i
+  const [trendyolActivities, setTrendyolActivities] = useState(() => JSON.parse(localStorage.getItem('smm_trendyol_activities')) || []);
+
+  // Hızlı Not Widget State
   const [quickNote, setQuickNote] = useState(() => localStorage.getItem('smm_quick_note') || '');
 
   // Settings & Edit States
@@ -300,6 +307,7 @@ export default function App() {
   useEffect(() => localStorage.setItem('smm_tasks', JSON.stringify(tasks)), [tasks]);
   useEffect(() => localStorage.setItem('smm_expenses', JSON.stringify(expenses)), [expenses]);
   useEffect(() => localStorage.setItem('smm_monthly_goal', JSON.stringify(monthlyGoal)), [monthlyGoal]);
+  useEffect(() => localStorage.setItem('smm_trendyol_activities', JSON.stringify(trendyolActivities)), [trendyolActivities]);
   
   // Quick Note Auto-Save
   useEffect(() => {
@@ -319,6 +327,7 @@ export default function App() {
     if (window.confirm('Bu firmayı ve ilişkili tüm işleri silmek istediğine emin misin?')) {
       setFirms(firms.filter(f => f.id !== id));
       setTasks(tasks.filter(t => t.firmId !== id));
+      setTrendyolActivities(trendyolActivities.filter(t => t.firmId !== id));
     }
   };
 
@@ -342,17 +351,33 @@ export default function App() {
 
   const deleteExpense = (id) => setExpenses(expenses.filter(e => e.id !== id));
 
+  // --- Trendyol CRUD ---
+  const addTrendyolActivity = (activity) => {
+    setTrendyolActivities([...trendyolActivities, { ...activity, id: Date.now().toString() }]);
+  };
+
+  const updateTrendyolActivity = (updatedActivity) => {
+    setTrendyolActivities(trendyolActivities.map(a => a.id === updatedActivity.id ? updatedActivity : a));
+  };
+
+  const deleteTrendyolActivity = (id) => {
+    if(window.confirm('Bu kaydı silmek istediğinize emin misiniz?')) {
+      setTrendyolActivities(trendyolActivities.filter(a => a.id !== id));
+    }
+  };
+
   // --- Backup / Restore ---
   const handleExportData = () => {
     const data = {
-      version: "2.0",
+      version: "2.1",
       date: new Date().toISOString(),
       firms,
       tasks,
       expenses,
       businessConfig,
       monthlyGoal,
-      quickNote
+      quickNote,
+      trendyolActivities
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -380,6 +405,7 @@ export default function App() {
           if (data.businessConfig) setBusinessConfig(data.businessConfig);
           if (data.monthlyGoal) setMonthlyGoal(data.monthlyGoal);
           if (data.quickNote) setQuickNote(data.quickNote);
+          if (data.trendyolActivities) setTrendyolActivities(data.trendyolActivities);
           alert('Yedek başarıyla yüklendi!');
           window.location.reload(); 
         }
@@ -505,7 +531,37 @@ export default function App() {
   // --- Alt Sayfalar ---
 
   // 1. Dashboard
-  const Dashboard = () => (
+  const Dashboard = () => {
+     // Dashboard için Trendyol Form State
+     const [dashTrendyolForm, setDashTrendyolForm] = useState({
+       firmId: '',
+       date: new Date().toISOString().split('T')[0],
+       type: 'İlan Girişi',
+       quantity: 1
+     });
+
+     const trendyolFirms = firms.filter(f => f.platform === 'Trendyol');
+
+     const handleDashTrendyolSave = (e) => {
+       e.preventDefault();
+       if (!dashTrendyolForm.firmId) {
+         alert("Lütfen firma seçin.");
+         return;
+       }
+       const activityData = {
+         id: Date.now().toString(),
+         firmId: dashTrendyolForm.firmId,
+         date: dashTrendyolForm.date,
+         type: dashTrendyolForm.type,
+         quantity: dashTrendyolForm.type === 'İlan Girişi' ? parseInt(dashTrendyolForm.quantity) : 1
+       };
+       addTrendyolActivity(activityData);
+       // Reset form but keep last firm selected
+       setDashTrendyolForm(prev => ({ ...prev, quantity: 1 }));
+       alert('İşlem başarıyla kaydedildi!');
+     };
+
+     return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 print:hidden">
         <div>
@@ -545,6 +601,46 @@ export default function App() {
           </div>
         ))}
       </div>
+
+      {/* DASHBOARD TRENDYOL WIDGET */}
+      {trendyolFirms.length > 0 && (
+         <div className="bg-orange-900/10 border border-orange-700/30 p-5 rounded-xl shadow-sm relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
+            <h3 className="text-orange-400 font-bold mb-4 flex items-center gap-2 relative z-10"><ShoppingBag size={20}/> Hızlı Trendyol Operasyonu</h3>
+            
+            <form onSubmit={handleDashTrendyolSave} className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end relative z-10">
+               <div className="md:col-span-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Firma Seçin</label>
+                  <select required className={inputStyle + " py-2 text-sm bg-gray-800"} value={dashTrendyolForm.firmId} onChange={e => setDashTrendyolForm({...dashTrendyolForm, firmId: e.target.value})}>
+                     <option value="">Seçiniz...</option>
+                     {trendyolFirms.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                  </select>
+               </div>
+               <div>
+                  <label className="text-xs text-gray-400 mb-1 block">Tarih</label>
+                  <input required type="date" className={inputStyle + " py-2 text-sm bg-gray-800"} value={dashTrendyolForm.date} onChange={e => setDashTrendyolForm({...dashTrendyolForm, date: e.target.value})} />
+               </div>
+               <div>
+                  <label className="text-xs text-gray-400 mb-1 block">İşlem</label>
+                  <select className={inputStyle + " py-2 text-sm bg-gray-800"} value={dashTrendyolForm.type} onChange={e => setDashTrendyolForm({...dashTrendyolForm, type: e.target.value})}>
+                     <option value="İlan Girişi">İlan Girişi</option>
+                     <option value="Banner Tasarımı">Banner Tasarımı</option>
+                  </select>
+               </div>
+               {dashTrendyolForm.type === 'İlan Girişi' && (
+                  <div>
+                     <label className="text-xs text-gray-400 mb-1 block">Adet</label>
+                     <input required type="number" min="1" className={inputStyle + " py-2 text-sm bg-gray-800"} value={dashTrendyolForm.quantity} onChange={e => setDashTrendyolForm({...dashTrendyolForm, quantity: e.target.value})} />
+                  </div>
+               )}
+               <div className={dashTrendyolForm.type !== 'İlan Girişi' ? "md:col-span-2" : ""}>
+                  <button type="submit" className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2 rounded-lg text-sm font-medium transition shadow-lg shadow-orange-900/20 border border-orange-500/50">
+                     Kaydet
+                  </button>
+               </div>
+            </form>
+         </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Finansal Grafik */}
@@ -646,6 +742,7 @@ export default function App() {
       </div>
     </div>
   );
+  };
 
   // 2. Firmalar
   const Firms = () => {
@@ -655,14 +752,16 @@ export default function App() {
     const [editingFirm, setEditingFirm] = useState(null);
     const [selectedFirm, setSelectedFirm] = useState(null);
 
-    const filteredFirms = firms.filter(f => 
+    const standardFirms = firms.filter(f => f.platform !== 'Trendyol');
+
+    const filteredFirms = standardFirms.filter(f => 
       f.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
       f.sector?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     const openModal = (firm = null, e = null) => {
       if(e) e.stopPropagation();
-      setEditingFirm(firm || { name: '', contact: '', phone: '', sector: '', notes: '' });
+      setEditingFirm(firm || { name: '', contact: '', phone: '', sector: '', notes: '', platform: 'Standart' });
       setModalOpen(true);
     };
 
@@ -678,7 +777,7 @@ export default function App() {
 
     const handleSave = (e) => {
       e.preventDefault();
-      saveFirm(editingFirm);
+      saveFirm({...editingFirm, platform: 'Standart'});
       setModalOpen(false);
     };
 
@@ -689,7 +788,7 @@ export default function App() {
             <Search className="absolute left-3 top-3 text-gray-400" size={18} />
             <input 
               type="text" 
-              placeholder="Firma veya sektör ara..." 
+              placeholder="Sosyal Medya / Web müşterisi ara..." 
               className={inputStyle + " pl-10"}
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
@@ -697,7 +796,7 @@ export default function App() {
           </div>
           <div className="flex gap-2">
             <button 
-              onClick={() => exportToCSV(firms, 'musteri_listesi')}
+              onClick={() => exportToCSV(standardFirms, 'sosyal_medya_musteri_listesi')}
               className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2.5 rounded-lg flex items-center gap-2 border border-gray-600 transition"
               title="Listeyi İndir"
             >
@@ -722,7 +821,9 @@ export default function App() {
               <div className="h-1.5 w-full bg-gradient-to-r from-blue-500 to-purple-600"></div>
               <div className="p-5">
                 <div className="flex justify-between items-start mb-3">
-                  <h3 className="font-bold text-lg text-gray-100 group-hover:text-blue-400 transition-colors">{firm.name}</h3>
+                  <h3 className="font-bold text-lg text-gray-100 group-hover:text-blue-400 transition-colors flex items-center gap-2">
+                    {firm.name} 
+                  </h3>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={(e) => openModal(firm, e)} className="p-1.5 text-gray-400 hover:text-blue-400 hover:bg-gray-700 rounded"><Edit2 size={16} /></button>
                     <button onClick={(e) => handleDelete(firm.id, e)} className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded"><Trash2 size={16} /></button>
@@ -769,7 +870,6 @@ export default function App() {
           )}
         </div>
 
-        {/* Firma Ekle/Düzenle Modal */}
         <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingFirm?.id ? 'Müşteriyi Düzenle' : 'Yeni Müşteri Ekle'}>
           <form onSubmit={handleSave} className="space-y-4">
             <div>
@@ -804,13 +904,14 @@ export default function App() {
           </form>
         </Modal>
 
-        {/* Müşteri Detay Modal */}
-        <Modal isOpen={detailModalOpen} onClose={() => setDetailModalOpen(false)} title="Müşteri Detayı" maxWidth="max-w-3xl">
+        <Modal isOpen={detailModalOpen} onClose={() => setDetailModalOpen(false)} title="Müşteri Detayı" maxWidth="max-w-4xl">
            {selectedFirm && (
              <div className="space-y-6">
                <div className="bg-gradient-to-r from-blue-900/20 to-purple-900/20 p-6 rounded-xl border border-blue-800/30 flex flex-col md:flex-row justify-between items-start gap-4">
                   <div>
-                    <h2 className="text-2xl font-bold text-white">{selectedFirm.name}</h2>
+                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                       {selectedFirm.name}
+                    </h2>
                     <div className="text-sm text-gray-300 mt-2 space-y-1">
                       <p><span className="text-blue-400 font-medium">Yetkili:</span> {selectedFirm.contact || '-'}</p>
                       <p><span className="text-blue-400 font-medium">Sektör:</span> {selectedFirm.sector || '-'}</p>
@@ -833,7 +934,7 @@ export default function App() {
                )}
 
                <div>
-                 <h4 className="font-bold text-gray-300 mb-3 flex items-center gap-2"><CheckSquare size={18}/> İş Geçmişi</h4>
+                 <h4 className="font-bold text-gray-300 mb-3 mt-4">Genel İş Listesi</h4>
                  <div className="border border-gray-700 rounded-xl overflow-hidden bg-gray-800 shadow-sm overflow-x-auto">
                    <table className="w-full text-left text-sm min-w-[600px]">
                      <thead className="bg-gray-900/50 text-gray-400 border-b border-gray-700">
@@ -884,6 +985,8 @@ export default function App() {
     const [modalOpen, setModalOpen] = useState(false);
     const [editingTask, setEditingTask] = useState(null);
 
+    const standardFirms = firms.filter(f => f.platform !== 'Trendyol');
+
     const filteredTasks = tasks.filter(task => {
       const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesFilter = 
@@ -895,15 +998,15 @@ export default function App() {
     });
 
     const openModal = (task = null) => {
-      if (firms.length === 0) {
-        alert("Önce müşteri eklemelisiniz!");
+      if (standardFirms.length === 0) {
+        alert("Önce sosyal medya müşterisi eklemelisiniz!");
         return;
       }
       setEditingTask(task || { 
-        firmId: firms[0]?.id, 
+        firmId: standardFirms[0]?.id, 
         title: '', 
         platform: 'Instagram', 
-        priority: 'Orta',
+        priority: 'Orta', 
         amount: '', 
         date: new Date().toISOString().split('T')[0] 
       });
@@ -1023,20 +1126,19 @@ export default function App() {
           </div>
         </div>
 
-         {/* İş Ekle/Düzenle Modal */}
          <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingTask?.id ? 'İşi Düzenle' : 'Yeni İş Ekle'}>
           <form onSubmit={handleSave} className="space-y-4">
             <div>
               <label className={labelStyle}>Müşteri Seçin</label>
               <select required className={inputStyle} value={editingTask?.firmId || ''} onChange={e => setEditingTask({...editingTask, firmId: e.target.value})}>
-                {firms.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                {standardFirms.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
             </div>
             <div className="grid grid-cols-2 gap-4">
                <div>
                 <label className={labelStyle}>Platform</label>
                 <select className={inputStyle} value={editingTask?.platform || 'Instagram'} onChange={e => setEditingTask({...editingTask, platform: e.target.value})}>
-                  {['Instagram', 'TikTok', 'Youtube', 'LinkedIn', 'Twitter', 'Diğer'].map(p => <option key={p} value={p}>{p}</option>)}
+                  {['Instagram', 'TikTok', 'Youtube', 'LinkedIn', 'Twitter', 'Web Sitesi', 'Diğer'].map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
                </div>
                <div>
@@ -1221,6 +1323,335 @@ export default function App() {
     );
   };
 
+  // 5. Trendyol Paneli (YENİ)
+  const TrendyolPanel = () => {
+    const [searchTerm, setSearchTerm] = useState('');
+    const [modalOpen, setModalOpen] = useState(false);
+    const [detailModalOpen, setDetailModalOpen] = useState(false);
+    const [editingFirm, setEditingFirm] = useState(null);
+    const [selectedFirm, setSelectedFirm] = useState(null);
+
+    const [trendyolForm, setTrendyolForm] = useState({
+      id: null,
+      date: new Date().toISOString().split('T')[0],
+      type: 'İlan Girişi',
+      quantity: 1
+    });
+    const [isEditingTrendyol, setIsEditingTrendyol] = useState(false);
+
+    const trendyolFirms = firms.filter(f => f.platform === 'Trendyol');
+
+    const filteredFirms = trendyolFirms.filter(f => 
+      f.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      f.sector?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const openModal = (firm = null, e = null) => {
+      if(e) e.stopPropagation();
+      setEditingFirm(firm || { name: '', contact: '', phone: '', sector: '', notes: '', platform: 'Trendyol' });
+      setModalOpen(true);
+    };
+
+    const handleDelete = (id, e) => {
+      e.stopPropagation();
+      deleteFirm(id);
+    };
+
+    const handleFirmClick = (firm) => {
+      setSelectedFirm(firm);
+      setDetailModalOpen(true);
+      handleCancelTrendyolEdit();
+    };
+
+    const handleSave = (e) => {
+      e.preventDefault();
+      saveFirm({...editingFirm, platform: 'Trendyol'});
+      setModalOpen(false);
+    };
+
+    const handleSaveTrendyolActivity = (e) => {
+      e.preventDefault();
+      if (!selectedFirm) return;
+
+      const activityData = {
+        id: trendyolForm.id || Date.now().toString(),
+        firmId: selectedFirm.id,
+        date: trendyolForm.date,
+        type: trendyolForm.type,
+        quantity: trendyolForm.type === 'İlan Girişi' ? parseInt(trendyolForm.quantity) : 1
+      };
+
+      if (isEditingTrendyol) {
+          updateTrendyolActivity(activityData);
+      } else {
+          addTrendyolActivity(activityData);
+      }
+      handleCancelTrendyolEdit();
+    };
+
+    const handleEditTrendyolActivity = (activity) => {
+        setTrendyolForm({
+            id: activity.id,
+            date: activity.date,
+            type: activity.type,
+            quantity: activity.quantity || 1
+        });
+        setIsEditingTrendyol(true);
+    };
+
+    const handleCancelTrendyolEdit = () => {
+        setTrendyolForm({ 
+            id: null,
+            date: new Date().toISOString().split('T')[0], 
+            type: 'İlan Girişi', 
+            quantity: 1 
+        });
+        setIsEditingTrendyol(false);
+    };
+
+    const firmTrendyolActivities = selectedFirm 
+      ? trendyolActivities.filter(a => a.firmId === selectedFirm.id).sort((a,b) => new Date(b.date) - new Date(a.date))
+      : [];
+
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    const monthlyActivities = firmTrendyolActivities.filter(a => {
+      const d = new Date(a.date);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    });
+
+    const totalAds = monthlyActivities.filter(a => a.type === 'İlan Girişi').reduce((acc, curr) => acc + curr.quantity, 0);
+    const totalBanners = monthlyActivities.filter(a => a.type === 'Banner Tasarımı').length;
+
+    return (
+      <div className="space-y-6 animate-in fade-in duration-500">
+        <div className="flex flex-col sm:flex-row justify-between gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-3 text-gray-400" size={18} />
+            <input 
+              type="text" 
+              placeholder="Trendyol mağazası ara..." 
+              className={inputStyle + " pl-10"}
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => openModal()}
+              className="bg-orange-600 hover:bg-orange-700 text-white px-5 py-2.5 rounded-lg flex items-center gap-2 shadow-lg shadow-orange-900/20 transition font-medium border border-orange-500/50 whitespace-nowrap"
+            >
+              <Plus size={18}/> Yeni Mağaza
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filteredFirms.map(firm => (
+            <div 
+              key={firm.id} 
+              onClick={() => handleFirmClick(firm)}
+              className="bg-gray-800 rounded-xl border border-gray-700 hover:border-orange-500/50 hover:bg-gray-800/80 transition group relative overflow-hidden cursor-pointer shadow-md"
+            >
+              <div className="h-1.5 w-full bg-gradient-to-r from-orange-400 to-orange-600"></div>
+              <div className="p-5">
+                <div className="flex justify-between items-start mb-3">
+                  <h3 className="font-bold text-lg text-gray-100 group-hover:text-orange-400 transition-colors flex items-center gap-2">
+                    {firm.name} 
+                    <span className="bg-orange-500/20 text-orange-400 text-[10px] px-1.5 py-0.5 rounded border border-orange-500/30">Trendyol</span>
+                  </h3>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={(e) => openModal(firm, e)} className="p-1.5 text-gray-400 hover:text-blue-400 hover:bg-gray-700 rounded"><Edit2 size={16} /></button>
+                    <button onClick={(e) => handleDelete(firm.id, e)} className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded"><Trash2 size={16} /></button>
+                  </div>
+                </div>
+                
+                <div className="space-y-2 text-sm text-gray-400">
+                  <div className="flex items-center gap-2">
+                    <span className="w-20 font-medium text-gray-500">Kategori:</span>
+                    <span>{firm.sector || '-'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-20 font-medium text-gray-500">Yetkili:</span>
+                    <span>{firm.contact || '-'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+          
+          {filteredFirms.length === 0 && (
+            <div className="col-span-full py-16 text-center bg-gray-800 rounded-xl border border-dashed border-gray-700">
+              <ShoppingBag size={48} className="mx-auto text-gray-600 mb-3" />
+              <p className="text-gray-500">Kayıtlı Trendyol mağazası bulunamadı.</p>
+            </div>
+          )}
+        </div>
+
+        {/* Trendyol Firma Modal */}
+        <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingFirm?.id ? 'Mağazayı Düzenle' : 'Yeni Mağaza Ekle'}>
+          <form onSubmit={handleSave} className="space-y-4">
+            <div>
+              <label className={labelStyle}>Mağaza / Firma Adı</label>
+              <input required type="text" className={inputStyle} value={editingFirm?.name || ''} onChange={e => setEditingFirm({...editingFirm, name: e.target.value})} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={labelStyle}>Yetkili Kişi</label>
+                <input type="text" className={inputStyle} value={editingFirm?.contact || ''} onChange={e => setEditingFirm({...editingFirm, contact: e.target.value})} />
+              </div>
+              <div>
+                <label className={labelStyle}>Telefon</label>
+                <input type="text" className={inputStyle} placeholder="05XX XXX XX XX" value={editingFirm?.phone || ''} onChange={e => setEditingFirm({...editingFirm, phone: e.target.value})} />
+              </div>
+            </div>
+            <div>
+               <label className={labelStyle}>Satış Kategorisi (Sektör)</label>
+               <input type="text" className={inputStyle} value={editingFirm?.sector || ''} onChange={e => setEditingFirm({...editingFirm, sector: e.target.value})} />
+            </div>
+            <div>
+              <label className={labelStyle}>Mağaza Notları</label>
+              <textarea rows="3" className={inputStyle} placeholder="Özel notlar..." value={editingFirm?.notes || ''} onChange={e => setEditingFirm({...editingFirm, notes: e.target.value})}></textarea>
+            </div>
+            <button type="submit" className="w-full bg-orange-600 text-white py-2.5 rounded-lg hover:bg-orange-700 transition font-medium border border-orange-500/50 shadow-lg shadow-orange-900/20">Kaydet</button>
+          </form>
+        </Modal>
+
+        {/* Trendyol İşlem Detay Modal */}
+        <Modal isOpen={detailModalOpen} onClose={() => setDetailModalOpen(false)} title="Trendyol Operasyon Detayı" maxWidth="max-w-4xl">
+           {selectedFirm && (
+             <div className="space-y-6">
+               <div className="bg-gradient-to-r from-orange-900/20 to-red-900/20 p-6 rounded-xl border border-orange-800/30 flex flex-col md:flex-row justify-between items-start gap-4">
+                  <div>
+                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                       {selectedFirm.name}
+                    </h2>
+                    <div className="text-sm text-gray-300 mt-2 space-y-1">
+                      <p><span className="text-orange-400 font-medium">Yetkili:</span> {selectedFirm.contact || '-'}</p>
+                      <p><span className="text-orange-400 font-medium">Kategori:</span> {selectedFirm.sector || '-'}</p>
+                    </div>
+                  </div>
+               </div>
+
+               {/* İstatistik Kutuları */}
+               <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-gray-900/50 border border-gray-700 p-4 rounded-xl flex items-center justify-between">
+                     <div>
+                        <p className="text-xs text-gray-400 uppercase">Bu Ay Girilen İlan</p>
+                        <p className="text-2xl font-bold text-orange-400 mt-1">{totalAds} <span className="text-sm font-normal text-gray-500">adet</span></p>
+                     </div>
+                     <div className="bg-orange-900/20 p-2 rounded-lg text-orange-400"><Layers size={20}/></div>
+                  </div>
+                  <div className="bg-gray-900/50 border border-gray-700 p-4 rounded-xl flex items-center justify-between">
+                     <div>
+                        <p className="text-xs text-gray-400 uppercase">Bu Ay Yapılan Banner</p>
+                        <p className="text-2xl font-bold text-blue-400 mt-1">{totalBanners} <span className="text-sm font-normal text-gray-500">adet</span></p>
+                     </div>
+                     <div className="bg-blue-900/20 p-2 rounded-lg text-blue-400"><FileText size={20}/></div>
+                  </div>
+               </div>
+
+               {/* Ekleme/Düzenleme Formu */}
+               <div className={`p-4 rounded-xl border shadow-sm transition-colors ${isEditingTrendyol ? 'bg-blue-900/10 border-blue-700/50' : 'bg-gray-800 border-gray-700'}`}>
+                  <h4 className={`text-sm font-bold mb-3 flex items-center gap-2 ${isEditingTrendyol ? 'text-blue-300' : 'text-gray-300'}`}>
+                     {isEditingTrendyol ? <Edit2 size={16}/> : <Plus size={16}/>} 
+                     {isEditingTrendyol ? 'İşlemi Düzenle' : 'Günlük İşlem Ekle'}
+                  </h4>
+                  <form onSubmit={handleSaveTrendyolActivity} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                     <div>
+                        <label className="text-xs text-gray-400 mb-1 block">Tarih</label>
+                        <input required type="date" className={inputStyle + " py-2 text-sm"} value={trendyolForm.date} onChange={e => setTrendyolForm({...trendyolForm, date: e.target.value})} />
+                     </div>
+                     <div>
+                        <label className="text-xs text-gray-400 mb-1 block">İşlem</label>
+                        <select className={inputStyle + " py-2 text-sm"} value={trendyolForm.type} onChange={e => setTrendyolForm({...trendyolForm, type: e.target.value})}>
+                           <option value="İlan Girişi">İlan Girişi</option>
+                           <option value="Banner Tasarımı">Banner Tasarımı</option>
+                        </select>
+                     </div>
+                     
+                     {trendyolForm.type === 'İlan Girişi' && (
+                        <div className="animate-in fade-in slide-in-from-top-2">
+                           <label className="text-xs text-gray-400 mb-1 block">Adet</label>
+                           <input required type="number" min="1" className={inputStyle + " py-2 text-sm"} value={trendyolForm.quantity} onChange={e => setTrendyolForm({...trendyolForm, quantity: e.target.value})} />
+                        </div>
+                     )}
+
+                     <div className={trendyolForm.type !== 'İlan Girişi' ? "md:col-span-2" : ""}>
+                        {isEditingTrendyol ? (
+                          <div className="flex gap-2">
+                            <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-sm font-medium transition shadow-lg shadow-blue-900/20">
+                               Güncelle
+                            </button>
+                            <button type="button" onClick={handleCancelTrendyolEdit} className="px-3 bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm font-medium transition">
+                               İptal
+                            </button>
+                          </div>
+                        ) : (
+                          <button type="submit" className="w-full bg-orange-600 hover:bg-orange-700 text-white py-2 rounded-lg text-sm font-medium transition shadow-lg shadow-orange-900/20">
+                             Kaydet
+                          </button>
+                        )}
+                     </div>
+                  </form>
+               </div>
+
+               {/* Liste ve Çıktı */}
+               <div>
+                  <div className="flex justify-between items-center mb-3">
+                     <h4 className="font-bold text-gray-300">İşlem Geçmişi</h4>
+                     <button 
+                       onClick={() => exportToCSV(firmTrendyolActivities, `${selectedFirm.name}_Trendyol_Raporu`)}
+                       className="text-xs flex items-center gap-1 bg-gray-700 hover:bg-gray-600 text-gray-300 px-3 py-1.5 rounded transition border border-gray-600"
+                     >
+                       <Download size={14}/> Rapor Al (CSV)
+                     </button>
+                  </div>
+                  <div className="border border-gray-700 rounded-xl overflow-hidden bg-gray-900/30 max-h-[300px] overflow-y-auto custom-scrollbar">
+                     <table className="w-full text-left text-sm">
+                        <thead className="bg-gray-800 text-gray-400 sticky top-0 z-10">
+                           <tr>
+                              <th className="p-3 pl-4">Tarih</th>
+                              <th className="p-3">İşlem Tipi</th>
+                              <th className="p-3">Adet</th>
+                              <th className="p-3 text-right pr-4">İşlemler</th>
+                           </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-700/50">
+                           {firmTrendyolActivities.map(activity => (
+                              <tr key={activity.id} className={`hover:bg-gray-800/50 transition ${isEditingTrendyol && trendyolForm.id === activity.id ? 'bg-blue-900/10' : ''}`}>
+                                 <td className="p-3 pl-4 text-gray-400 font-mono text-xs">{formatDate(activity.date)}</td>
+                                 <td className="p-3">
+                                    {activity.type === 'İlan Girişi' ? 
+                                       <span className="text-orange-300 flex items-center gap-1"><Layers size={14}/> İlan Girişi</span> : 
+                                       <span className="text-blue-300 flex items-center gap-1"><FileText size={14}/> Banner</span>
+                                    }
+                                 </td>
+                                 <td className="p-3 font-bold text-gray-200">
+                                    {activity.type === 'İlan Girişi' ? activity.quantity : '-'}
+                                 </td>
+                                 <td className="p-3 text-right pr-4">
+                                    <div className="flex justify-end gap-2">
+                                      <button onClick={() => handleEditTrendyolActivity(activity)} className="p-1.5 text-blue-400 hover:bg-blue-900/30 rounded transition"><Edit2 size={14}/></button>
+                                      <button onClick={() => deleteTrendyolActivity(activity.id)} className="p-1.5 text-gray-600 hover:text-red-400 hover:bg-red-900/20 rounded transition"><Trash2 size={14}/></button>
+                                    </div>
+                                 </td>
+                              </tr>
+                           ))}
+                           {firmTrendyolActivities.length === 0 && (
+                              <tr><td colSpan="4" className="p-6 text-center text-gray-500 italic">Henüz Trendyol aktivitesi girilmedi.</td></tr>
+                           )}
+                        </tbody>
+                     </table>
+                  </div>
+               </div>
+             </div>
+           )}
+        </Modal>
+      </div>
+    );
+  };
+
   // --- Ana Render ---
   
   if (!isAuthenticated) {
@@ -1245,8 +1676,9 @@ export default function App() {
         <nav className="flex-1 p-4 space-y-2">
           {[
             { id: 'dashboard', icon: LayoutDashboard, label: 'Genel Bakış' },
-            { id: 'firms', icon: Users, label: 'Müşteriler' },
-            { id: 'tasks', icon: CheckSquare, label: 'İş Yönetimi' },
+            { id: 'firms', icon: Users, label: 'S. Medya Müşterileri' },
+            { id: 'tasks', icon: CheckSquare, label: 'S. Medya İşleri' },
+            { id: 'trendyol', icon: ShoppingBag, label: 'Trendyol Paneli' },
             { id: 'accounting', icon: Wallet, label: 'Muhasebe' },
           ].map(item => (
             <button 
@@ -1304,6 +1736,7 @@ export default function App() {
                 { id: 'dashboard', icon: LayoutDashboard, label: 'Özet' },
                 { id: 'firms', icon: Users, label: 'Müşteri' },
                 { id: 'tasks', icon: CheckSquare, label: 'İşler' },
+                { id: 'trendyol', icon: ShoppingBag, label: 'Trendyol' },
                 { id: 'accounting', icon: Wallet, label: 'Kasa' },
               ].map(item => {
                 const isActive = activeTab === item.id;
@@ -1341,6 +1774,7 @@ export default function App() {
           {activeTab === 'dashboard' && <Dashboard />}
           {activeTab === 'firms' && <Firms />}
           {activeTab === 'tasks' && <Tasks />}
+          {activeTab === 'trendyol' && <TrendyolPanel />}
           {activeTab === 'accounting' && <Accounting />}
         </div>
       </main>
